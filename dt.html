@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Partnership & Funding App</title>
+<style>
+body { font-family: Arial; margin:0; padding:0; background:#f4f4f4; }
+header { background:#2c3e50; color:#fff; text-align:center; padding:15px; }
+nav { display:flex; background:#34495e; }
+nav button { flex:1; padding:12px; background:#34495e; color:#fff; border:none; cursor:pointer; }
+nav button:hover { background:#2ecc71; }
+section { display:none; padding:20px; }
+section.active { display:block; }
+.card { background:#fff; padding:15px; margin:10px 0; border-radius:6px; position:relative; }
+input, textarea, select, button { width:100%; padding:8px; margin:6px 0; }
+button.submit { background:#2ecc71; color:#fff; border:none; cursor:pointer; }
+button.clear { background:#e74c3c; color:#fff; border:none; cursor:pointer; }
+.rating { color: #f39c12; }
+.progress-bar { height:20px; background:#ccc; border-radius:10px; overflow:hidden; margin-top:5px; }
+.progress-fill { height:100%; background:#2ecc71; width:0%; text-align:center; color:#fff; line-height:20px; }
+.favorite { color:red; cursor:pointer; position:absolute; top:10px; right:10px; }
+.confetti { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+.tip { background:#f1c40f; padding:5px; border-radius:5px; margin-bottom:10px; text-align:center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h2>🌍 Partnership & Funding App</h2>
+</header>
+
+<nav>
+  <button onclick="show('match')">Matchmaking</button>
+  <button onclick="show('funding')">Funding</button>
+  <button onclick="show('impact')">Impact</button>
+</nav>
+
+<div id="tipBox" class="tip"></div>
+
+<!-- Matchmaking -->
+<section id="match" class="active">
+  <h3>🤝 Find a Partner</h3>
+  <select id="role">
+    <option>Startup</option>
+    <option>NGO</option>
+    <option>World Bank</option>
+  </select>
+  <select id="goal">
+    <option>Education</option>
+    <option>Health</option>
+    <option>Finance</option>
+  </select>
+  <button class="submit" onclick="findPartner()">Find Partner</button>
+  <button class="submit" onclick="randomPartner()">Surprise Match</button>
+  <div id="matchResult" class="card"></div>
+  <input type="number" id="partnerRating" placeholder="Rate partner 1-5">
+  <button class="submit" onclick="ratePartner()">Submit Rating</button>
+</section>
+
+<!-- Funding -->
+<section id="funding">
+  <h3>💰 Funding Opportunities</h3>
+  <input type="text" id="searchFunding" placeholder="Search Funding..." onkeyup="filterFunding()">
+  <div id="fundingList"></div>
+  <button class="clear" onclick="clearFunding()">Clear All Funding</button>
+
+  <h4>Apply / Add Funding:</h4>
+  <input type="text" id="orgName" placeholder="Organization Name">
+  <textarea id="projIdea" placeholder="Project Idea"></textarea>
+  <input type="date" id="fundDeadline">
+  <button class="submit" onclick="addFunding()">Submit</button>
+</section>
+
+<!-- Impact -->
+<section id="impact">
+  <h3>📊 Impact Tracker</h3>
+  <input type="text" id="projectName" placeholder="Project Name">
+  <input type="number" id="progress" placeholder="Progress %">
+  <select id="projGoal">
+    <option>Education</option>
+    <option>Health</option>
+    <option>Finance</option>
+  </select>
+  <button class="submit" onclick="addImpact()">Add / Update Progress</button>
+  <button class="clear" onclick="clearImpact()">Clear All Projects</button>
+  <button class="submit" onclick="sortImpact()">Sort by Progress</button>
+  <div id="impactList"></div>
+</section>
+
+<canvas id="confettiCanvas" class="confetti"></canvas>
+
+<script>
+// --- Navigation ---
+function show(id){
+  document.querySelectorAll("section").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+// --- Random Tips ---
+const tips = [
+  "Tip: Collaborate with NGOs for better funding success.",
+  "Tip: Focus on measurable impact for investors.",
+  "Tip: Diversify funding sources to avoid risk.",
+  "Tip: Use clear goals to attract partners.",
+  "Tip: Update progress regularly to track success."
+];
+function showTip(){
+  document.getElementById("tipBox").innerText = tips[Math.floor(Math.random()*tips.length)];
+}
+setInterval(showTip,10000);
+showTip();
+
+// --- Matchmaking ---
+let currentPartner = "";
+function findPartner(){
+  let role = document.getElementById("role").value;
+  let goal = document.getElementById("goal").value;
+  currentPartner = role + " in " + goal;
+  document.getElementById("matchResult").innerHTML = "Best Match: " + currentPartner + " ✅";
+}
+function randomPartner(){
+  const roles = ["Startup","NGO","World Bank"];
+  const goals = ["Education","Health","Finance"];
+  currentPartner = roles[Math.floor(Math.random()*3)] + " in " + goals[Math.floor(Math.random()*3)];
+  document.getElementById("matchResult").innerHTML = "Surprise Match: " + currentPartner + " 🎉";
+}
+function ratePartner(){
+  let rating = document.getElementById("partnerRating").value;
+  if(currentPartner && rating>=1 && rating<=5){
+    document.getElementById("matchResult").innerHTML += `<br>Rating: <span class="rating">${"★".repeat(rating)}</span>`;
+    document.getElementById("partnerRating").value="";
+  } else alert("Enter valid rating 1-5");
+}
+
+// --- Funding with Idea Verification ---
+function loadFunding(){
+  let data = JSON.parse(localStorage.getItem("fundings") || "[]");
+  let list = document.getElementById("fundingList");
+  list.innerHTML = "";
+  data.forEach((f,i)=>{
+    let today = new Date();
+    let deadline = new Date(f.deadline);
+    let daysLeft = Math.max(Math.ceil((deadline-today)/(1000*60*60*24)),0);
+
+    let verifyText = f.verified===true?"✅ Valid Idea":f.verified===false?"⚠️ Duplicate / AI-like Idea":"⏳ Not Verified";
+
+    list.innerHTML += `
+    <div class="card">
+      ${f.favorite?"<span class='favorite' onclick='toggleFav("+i+")'>♥</span>":"<span class='favorite' onclick='toggleFav("+i+")'>♡</span>"}
+      <b>${f.org}</b>: ${f.idea}<br>
+      Deadline: ${f.deadline} (${daysLeft} days left)<br>
+      Verification: ${verifyText}
+    </div>`;
+  });
+}
+function addFunding(){
+  let org = document.getElementById("orgName").value.trim();
+  let idea = document.getElementById("projIdea").value.trim();
+  let deadline = document.getElementById("fundDeadline").value;
+
+  if(org && idea && deadline){
+    let data = JSON.parse(localStorage.getItem("fundings") || "[]");
+
+    // Idea Verification
+    let verified = true;
+    if(data.some(f=>f.idea.toLowerCase()===idea.toLowerCase())) verified = false;
+    const aiKeywords = ["AI-generated","machine learning","deep learning","neural network","chatbot","predictive"];
+    for(let word of aiKeywords){
+      if(idea.toLowerCase().includes(word.toLowerCase())){ verified=false; break; }
+    }
+
+    data.push({org, idea, deadline, favorite:false, verified});
+    localStorage.setItem("fundings", JSON.stringify(data));
+
+    document.getElementById("orgName").value="";
+    document.getElementById("projIdea").value="";
+    document.getElementById("fundDeadline").value="";
+    loadFunding();
+
+    alert(verified ? "Funding added ✅ Idea Verified!" : "Funding added ⚠️ Idea flagged as AI-like / duplicate");
+  } else alert("Fill all fields");
+}
+function filterFunding(){
+  let query = document.getElementById("searchFunding").value.toLowerCase();
+  let data = JSON.parse(localStorage.getItem("fundings") || "[]");
+  let list = document.getElementById("fundingList");
+  list.innerHTML = "";
+  data.filter(f=>f.org.toLowerCase().includes(query) || f.idea.toLowerCase().includes(query))
+      .forEach((f,i)=>{
+        let verifyText = f.verified===true?"✅ Valid Idea":f.verified===false?"⚠️ Duplicate / AI-like Idea":"⏳ Not Verified";
+        list.innerHTML += `<div class="card">${f.favorite?"<span class='favorite' onclick='toggleFav("+i+")'>♥</span>":"<span class='favorite' onclick='toggleFav("+i+")'>♡</span>"} <b>${f.org}</b>: ${f.idea}<br>Deadline: ${f.deadline}<br>Verification: ${verifyText}</div>`;
+      });
+}
+function toggleFav(i){
+  let data = JSON.parse(localStorage.getItem("fundings") || "[]");
+  data[i].favorite = !data[i].favorite;
+  localStorage.setItem("fundings", JSON.stringify(data));
+  loadFunding();
+}
+function clearFunding(){
+  localStorage.removeItem("fundings");
+  loadFunding();
+}
+
+// --- Impact Tracker ---
+function loadImpact(){
+  let data = JSON.parse(localStorage.getItem("impacts") || "[]");
+  let list = document.getElementById("impactList");
+  list.innerHTML = "";
+  data.forEach((p,i)=>{
+    let color = p.goal==="Education"?"#3498db":p.goal==="Health"?"#2ecc71":"#e67e22";
+    list.innerHTML += `<div class="card">${p.name} - <b>${p.goal}</b><div class="progress-bar"><div class="progress-fill" style="width:${p.progress}%;background:${color}">${p.progress}%</div></div>${p.progress==100?"✅ Completed":""}</div>`;
+    if(p.progress==100) confetti();
+  });
+}
+function addImpact(){
+  let name = document.getElementById("projectName").value;
+  let progress = parseInt(document.getElementById("progress").value);
+  let goal = document.getElementById("projGoal").value;
+  if(name && progress>=0 && progress<=100){
+    let data = JSON.parse(localStorage.getItem("impacts") || "[]");
+    let idx = data.findIndex(p=>p.name===name);
+    if(idx>=0) data[idx].progress = progress;
+    else data.push({name, progress, goal});
+    localStorage.setItem("impacts", JSON.stringify(data));
+    document.getElementById("projectName").value="";
+    document.getElementById("progress").value="";
+    loadImpact();
+  } else alert("Enter valid progress 0-100%");
+}
+function clearImpact(){
+  localStorage.removeItem("impacts");
+  loadImpact();
+}
+function sortImpact(){
+  let data = JSON.parse(localStorage.getItem("impacts") || "[]");
+  data.sort((a,b)=>b.progress-a.progress);
+  localStorage.setItem("impacts", JSON.stringify(data));
+  loadImpact();
+}
+
+// --- Confetti ---
+function confetti(){
+  const canvas = document.getElementById("confettiCanvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  let confs = [];
+  for(let i=0;i<150;i++){
+    confs.push({x:Math.random()*canvas.width, y:Math.random()*canvas.height, r:Math.random()*6+4, dx:(Math.random()-0.5)*4, dy:Math.random()*4+2, color:`hsl(${Math.random()*360},100%,50%)`});
+  }
+  let frames=0;
+  function draw(){
+    frames++;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    confs.forEach(c=>{
+      ctx.beginPath();
+      ctx.arc(c.x,c.y,c.r,0,2*Math.PI);
+      ctx.fillStyle=c.color;
+      ctx.fill();
+      c.x += c.dx; c.y += c.dy;
+      if(c.y>canvas.height){c.y=0;c.x=Math.random()*canvas.width;}
+    });
+    if(frames<200) requestAnimationFrame(draw);
+    else ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+  draw();
+}
+
+// --- Initialize ---
+window.onload = ()=>{
+  loadFunding();
+  loadImpact();
+};
+</script>
+
+</body>
+</html>
